@@ -1,0 +1,75 @@
+import os
+import jieba
+from tqdm import tqdm
+
+def read_file(file_path):
+    """读取文本文件内容"""
+    try:
+        with open(file_path, 'r', encoding='utf-8') as file:
+            return file.read()
+    except Exception as e:
+        print(f"An error occurred while reading file: {file_path}")
+        print(f"Error: {e}")
+        return None
+
+# 其他函数定义和处理代码...
+
+def search_keyword_in_txt_files(folder_path, keyword, output_file):
+    """搜索关键词并在文本中标记"""
+    try:
+        with open(output_file, 'w', encoding='utf-8') as output:
+            output.write("<html>\n<head>\n<title>Search Results</title>\n<style>mark { background-color: yellow; }</style>\n</head>\n<body>\n")
+            result_count = 0
+            search_results = []
+            for root, dirs, files in os.walk(folder_path):
+                for file in tqdm(files, desc="Searching files", ncols=80, colour='black'):
+                    if file.endswith(".txt"):
+                        file_path = os.path.join(root, file)
+                        file_content = read_file(file_path)
+                        if file_content:
+                            seg_list, word_freq, keywords, topic, sentences, keyword_positions = process_text(file_content)
+                            if any(word in file_content for word in keyword.split()):
+                                result_count += 1
+                                context_similarity = calculate_context_similarity(keyword, sentences, keyword_positions)
+                                search_results.append({
+                                    "file": file,
+                                    "file_path": file_path,
+                                    "context_similarity": context_similarity
+                                })
+            search_results.sort(key=lambda x: x["context_similarity"], reverse=True)
+            for result in search_results:
+                file_path = result["file_path"]
+                file_content = read_file(file_path)
+                highlighted_content = file_content
+                for word in keyword.split():
+                    highlighted_content = highlighted_content.replace(word, f"<mark>{word}</mark>")
+                output.write(f"<h2>Found '{keyword}' in file: {file_path}</h2>\n")
+                output.write("<pre>\n")
+                output.write(highlighted_content + "\n")
+                output.write("</pre>\n")
+                if result_count % 5 == 0:
+                    output.write("<hr>\n")
+            output.write("</body>\n</html>")
+    except Exception as e:
+        print(f"An error occurred: {e}")
+
+if __name__ == "__main__":
+    print("Initializing jieba, please wait...")
+    with tqdm(total=100, ncols=80, desc="Initializing jieba", colour='black') as pbar:
+        jieba.initialize()
+        pbar.update(100)
+    print("jieba initialization completed.")
+
+    # 用户输入文件夹路径
+    folder_path = input("Enter the folder path: ")
+
+    # 用户输入关键词
+    keyword = input("Enter the keyword(s) (multiple keywords separated by space): ")
+
+    # 构建输出文件的完整路径
+    output_folder = os.path.dirname(folder_path)
+    output_file = os.path.join(output_folder, f"search_results_highlighted_{keyword}_{os.path.basename(folder_path)}.html")
+
+    # 搜索关键词并保存结果
+    search_keyword_in_txt_files(folder_path, keyword, output_file)
+    print(f"Search results saved to file: {output_file}")
